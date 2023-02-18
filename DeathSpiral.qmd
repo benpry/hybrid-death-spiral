@@ -1,0 +1,44 @@
+---
+title: "Why does the hybrid death spiral happen?"
+subtitle: "An agent-based model"
+author: "Ben Prystawski"
+format: html
+---
+
+[all source code is available on [GitHub](https://github.com/benpry/hybrid-death-spiral)]
+
+Mike Frank recently shared a [utility-theoretic model of hybrid meetings](https://rpubs.com/mcfrank/hybrid) that explains how they often end up worse than both fully remote meetings and fully in-person meetings. The key ideas are that there are fixed costs to running a hybrid meeting and more people end up joining remotely that strictly need to. In particular, many of us have observed that hybrid classes start with most people coming in-person, but people start to join remotely more and more over the course of the quarter. Having been one of the three people coming to class in-person at the end of a class, this definitely resonates with me. In Mike's model, he implements the death spiral by fiat, exponentiating the number of people who show up in person at each time step. In this model, I want to dig further into what causes the death spiral. Why do fewer and fewer people show up to class (or meetings) in person over time?
+
+# An agent
+
+The model consists of individual agents who decide whether to come to class in person or attend remotely. An agent gets a certain utility from attending in-person and attending remotely. The utility depends on how many other people do the same option. If you are one of many people attending in person, you benefit from joint attention and livelier in-class discussions. If you are one of the few people attending in-person, the class feels weirdly desolate and you feel the need to fill the awkward silences when the professor asks the class a question. Therefore, your utility is a fixed amount for attending $B_p$ plus a term that depends on how many others are attending in-person $sN_p$, where $N_p$ is the number of people attending in-person. If you are attending remotely, your experience will probably be roughly the same regardless of how many other people are remote, so you just get the baseline utility $B_r$. Showing up in-person requires you to move, though, so it imposes a fixed cost $C$[Meetings and talks/classes come apart a bit here. It might be that watching a lecture in person is intrinsically a better experience than watching it over zoom. But if you're the only one to show up to a hybrid meeting in person, aren't you just another remote participant in a Zoom meeting?]{.column-margin}
+
+$$
+\begin{align*}
+R &= B_r \\
+P &= B_p + sN_p - C
+\end{align*}
+$$
+
+People choose the option that maximizes utility. That is, an agent chooses to show up in-person when 
+
+$$
+B_p + sN_p - C > B_r
+$$
+
+You might notice that there are three arbitrary constants in the above equation. We can combine them all into one constant $B = B_r - B_p + C$ that denotes people's baseline preference for remote meetings. People decide to attend in-person when
+
+$$
+sN_p > B
+$$
+
+Everyone is going to have a different baseline depending on factors like how annoying their commute is and how easy they find it to pay attention to online meetings. For some people, $B$ is negative: they will show up in person even if they are the only one to do so. But for most people $B$ is positive, meaning they would rather join virtually than commute in just to be the only one in person. Likewise, $s$ varies between people: some people care more about having people show up to class in person than others. 
+
+# Agent, meet agent
+
+Now let's simulate a series of meetings with these agents. We will create a population with random $B$ and $s$ values.[I drew the B values from $\mathcal{N}(10, 5)$ and the $s$ values from $\mathcal{N}(1, 0.5)$. Those parameters come from playing around with a few combinations of parameters to see what creates the effect.]{.column-margin}
+
+```{python}
+from agents import MeetingSequence
+
+```
