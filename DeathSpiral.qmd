@@ -5,14 +5,29 @@ author: "Ben Prystawski"
 format: html
 ---
 
-[all source code is available on [GitHub](https://github.com/benpry/hybrid-death-spiral)]
+[source code is available on [GitHub](https://github.com/benpry/hybrid-death-spiral)]
 
-Mike Frank recently shared a [utility-theoretic model of hybrid meetings](https://rpubs.com/mcfrank/hybrid) that explains how they often end up worse than both fully remote meetings and fully in-person meetings. The key ideas are that there are fixed costs to running a hybrid meeting and more people end up joining remotely that strictly need to. In particular, many of us have observed that hybrid classes start with most people coming in-person, but people start to join remotely more and more over the course of the quarter. Having been one of the three people coming to class in-person at the end of a class, this definitely resonates with me. In Mike's model, he implements the death spiral by fiat, exponentiating the number of people who show up in person at each time step. In this model, I want to dig further into what causes the death spiral. Why do fewer and fewer people show up to class (or meetings) in person over time?
+A little while ago, Mike Frank shared a [utility-theoretic model of hybrid meetings](https://rpubs.com/mcfrank/hybrid) that shows how they can end up worse than both fully remote meetings and fully in-person meetings. The key components are as follows:
+
+* there are fixed costs to running a hybrid meeting
+* the utility of someone attending remotely is lower than attending in person
+* more people join remotely that strictly need to when they have the option
+
+He includes a section on the "hybrid death spiral," which people have observed in hybrid meetings and classes. They often start with most people coming in person, but over time more and more people start attending remotely. Having been one of the three people coming to class in-person toward the end of a hybrid class, this definitely resonates with me. Mike's model implements the death spiral by fiat, increasing the number of people who show up in person at each time step. I think *why* the hybrid death spiral happens is one of the most interesting questions here, so I made my own model to make one hypothesis explicit.
+
+Here are the assumptions of my model:
+
+* the value of attending in person depends on how many others attend in person
+* the value of attending remotely is (roughly) constant, regardless of how others are attending
+* there's some fixed cost to attending in person that varies between individuals
+* people estimate how many people will attend a meeting in person based on how many attended the last meeting in person
+
+These four assumptions lead to a population of agents that begins mostly attending in person to gradually converge toward a Nash equilibrium in which only a small subset of the population attends in person.
 
 # An agent
 
-The model consists of individual agents who decide whether to come to class in person or attend remotely. An agent gets a certain utility from attending in-person and attending remotely. The utility depends on how many other people do the same option. If you are one of many people attending in person, you benefit from joint attention and livelier in-class discussions. If you are one of the few people attending in-person, the class feels weirdly desolate and you feel the need to fill the awkward silences when the professor asks the class a question. Therefore, your utility is a fixed amount for attending $B_p$ plus a term that depends on how many others are attending in-person $sN_p$, where $N_p$ is the number of people attending in-person. If you are attending remotely, your experience will probably be roughly the same regardless of how many other people are remote, so you just get the baseline utility $B_r$. Showing up in-person requires you to move, though, so it imposes a fixed cost $C$[Meetings and talks/classes come apart a bit here. It might be that watching a lecture in person is intrinsically a better experience than watching it over zoom. But if you're the only one to show up to a hybrid meeting in person, aren't you just another remote participant in a Zoom meeting?]{.column-margin}
-
+The model consists of a population of $N$ agents who decide whether to attend a meeting in person or remotely. An agent gets a utility $P$ from attending in-person and a utility $R$ from attending remotely. $P$ depends on how many other agents in the population choose $P$. If you are one of many people attending in person, you benefit from joint attention and livelier discussion. If you are one of the few people attending in-person, you're mostly talking with people over Zoom anyway, so you've essentially just commuted to work in order to talk over Zoom from a different room.[Meetings and talks/classes come apart a bit here. It might be that watching a lecture in person is intrinsically a better experience than watching it over zoom.]{.column-margin}
+If the "meeting" is a class, you might feel the need to fill the awkward silences when the professor asks the class a question. An agent's utility from attending in person is a base amount $B_p$ plus a term that depends on how many others are attending in-person $sN_p$, where $N_p$ is the number of people attending in person. If an agent chooses to attend remotely, its experience will be roughly the same regardless of how many other people are remote, so it just gets the baseline utility $B_r$. Showing up in person requires you to move, though, so it imposes a fixed cost $C$.
 $$
 \begin{align*}
 R &= B_r \\
@@ -20,7 +35,7 @@ P &= B_p + sN_p - C
 \end{align*}
 $$
 
-People choose the option that maximizes utility. That is, an agent chooses to show up in-person when 
+Agents choose the option that maximizes utility. That is, they choose to show up in person when 
 
 $$
 B_p + sN_p - C > B_r
@@ -32,13 +47,171 @@ $$
 sN_p > B
 $$
 
-Everyone is going to have a different baseline depending on factors like how annoying their commute is and how easy they find it to pay attention to online meetings. For some people, $B$ is negative: they will show up in person even if they are the only one to do so. But for most people $B$ is positive, meaning they would rather join virtually than commute in just to be the only one in person. Likewise, $s$ varies between people: some people care more about having people show up to class in person than others. 
+Everyone is going to have a different baseline depending on factors like how annoying their commute is and how easy they find it to pay attention to online meetings. For some people, $B$ is negative: they will show up in person even if they are the only one to do so. But for most people $B$ is positive, meaning they would rather join virtually than commute in just to be the only one in person. Likewise, $s$ varies between people: some people care more about having their fellow meeting-goers show up in person than others. $s$ may even be negative for some people: crowded rooms can be unpleasant and some people may just be misanthropic. Finally, for some people $sN < B$, meaning even if everyone else attends in person, they would still prefer to join remotely.
+
+Of course, agents don't know $N_p$ until they actually show up to a meeting, so they need to estimate it using the number of people who showed up for the last meeting: they ask themselves "If as many people show up in person as did last time, is it worth the hassle to come to this meeting in person?".[There's a version of this where people assume all the other agents ask themselves the same question recursively enough times that we're basically at the Nash equilibrium for the first meeting, but that seems like a lot of mental work to do in order to avoid one commute.]{.column-margin}
 
 # Agent, meet agent
 
-Now let's simulate a series of meetings with these agents. We will create a population with random $B$ and $s$ values.[I drew the B values from $\mathcal{N}(10, 5)$ and the $s$ values from $\mathcal{N}(1, 0.5)$. Those parameters come from playing around with a few combinations of parameters to see what creates the effect.]{.column-margin}
+Now let's simulate a series of meetings with these agents. We will create a population of 30 agents with random $B$ and $s$ values. This gives our agents a diverse range of preferences for when they prefer meeting in person vs. remotely.[I drew the B values from $\mathcal{N}(20, 5)$ and the $s$ values from $\mathcal{N}(1, 0.25)$ Those parameters come from playing around with a few combinations of parameters to see what creates the effect, but I demonstrate results with different parameter settings below.]{.column-margin} Let's see an example sequence of meetings with these agents:
 
-```{python}
+```{python example_sequence}
 from agents import MeetingSequence
-
+meeting_sequence = MeetingSequence(
+    n_agents=30,
+    B_params=(20, 5),
+    s_params=(1, 0.25)
+)
+# hold 10 consecutive meetings with our agents
+attendances, utilities = meeting_sequence.hold_meeting_sequence(10)
+print(f"numbers in attendance:\n{attendances}")
+print(f"total utilities:\n{[int(u) for u in utilities]}")
 ```
+
+As we can see, most agents start attending in person, then they drop off more and more over the course of the meetings. We can run many simulations like this:
+
+```{python generate_data}
+import pandas as pd
+import numpy as np
+np.random.seed(42)
+def run_simulations(params):
+    rows = []
+    for simulation in range(1000):
+        meeting_sequence = MeetingSequence(**params)
+        attendances, utilities = meeting_sequence.hold_meeting_sequence(10)
+        for i, (attendance, utility) in enumerate(zip(attendances, utilities)):
+            rows.append({"meeting_num": i, "attendance": attendance, "utility": utility})
+
+    return pd.DataFrame(rows)
+
+df_simulations = run_simulations({"n_agents": 30, "B_params": (20, 5), "s_params": (1, 0.25)})
+```
+
+As we can see below, this model gives rise to the "hybrid death spiral" where fewer and fewer agents attend each meeting:
+```{r plot_attendance, message=F}
+library(tidyverse)
+library(ggthemes)
+library(reticulate)
+theme_set(theme_tufte())
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=attendance)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="In-person attendance over meetings",
+        x="Meeting number",
+        y="Agents attending in person"
+    )
+```
+
+But is that really a bad thing? According to total utility, yes. Over meetings, the sum of the agents' utility goes down along with in-person attendance.
+```{r plot_utility, message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=utility)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Total utility over meetings",
+        x="Meeting number",
+        y="Sum of agents' utilities"
+    )
+```
+
+# Playing with different parameter settings
+
+So we can get the hybrid death spiral with this model if we use one specific setting of parameters, but how does the behavior change with different parameters? I will focus just on changing $B$ here, since what really matters is the difference between $s$ and $B$. Here are two different ways the model's behavior can change for different settings:
+
+## Lowering the barriers to attending in-person
+
+One option is to use a lower value of $B$, meaning it is less annoying to show up in person. You could imagine a low value of $B$ as corresponding to a world where people live in well-designed cities where commutes are easy and buildings are designed accessibly. Let's use a lower mean value of $B$ and keep all the other parameters the same.
+
+```{python generate_data_low_B}
+df_simulations = run_simulations({"n_agents": 30, "B_params": (5, 5), "s_params": (1, 0.25)})
+```
+
+This choice of parameters leads to virtually no hybrid death spiral.
+```{r plot_attendance_low_B, message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=attendance)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Total utility over meetings",
+        x="Meeting number",
+        y="Number of agents attending in person"
+    )
+```
+
+And likewise, the agents' utilities barely fall!
+```{r plot_utility_low_B, message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=utility)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Total utility over meetings",
+        x="Meeting number",
+        y="Sum of agents' utilities"
+    )
+```
+
+This probably comes as no surprise, but the level of annoyance associated with going to an in-person meeting can determine whether the hybrid death spiral happens.
+
+## Less variable barriers
+
+What if the amount of effort required to show up in person varies less between people? Let's see what happens when we keep the original mean for $B$, but reduce the standard deviation to 1.
+
+```{python generate_data_variable_B}
+df_simulations = run_simulations({"n_agents": 30, "B_params": (20, 1), "s_params": (1, 0.25)})
+```
+
+Attendance still drops off a bit with this parameter setting, but it's a much smaller effect. Less a death spiral and more of a slight petering out.
+```{r plot_attendance_variable_B, message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=attendance)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="In-person attendance over meetings",
+        x="Meeting number",
+        y="Agents attending in person"
+    )
+```
+
+Likewise, the total utility also decreases a little bit.
+```{r plot_utility_variable_B, message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=utility)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Total utility over meetings",
+        x="Meeting number",
+        y="Sum of agents' utilities"
+    )
+```
+
+It looks like the fact that attending in person is more difficult for some people than others is an important driver of the hybrid death spiral.
+
+# Conclusion
+
+The hybrid death spiral can emerge under the following conditions:
+
+* There is some reasonably high and variable fixed cost of attending in person (e.g. commuting) 
+* The value of attending in person depends on how many others attend in person
+* The value of attending remotely does not depend on who else attends remotely
+* People estimate future attendance based on past attendance.
+
+As a series of meetings progresses, fewer and fewer people show up as the members converge toward a Nash equilibrium where only a (possibly small) subset of people attend in person. This leads to the attendees' total utility decreasing over time. I think it could be cool to analyze this model further. What happens if we draw the parameters from different distributions? How does the size of a meeting affect these dynamics? If you are curious about any of this, please feel free to take my code and run your own simulations.
