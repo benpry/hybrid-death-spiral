@@ -57,6 +57,8 @@ Now let's simulate a series of meetings with these agents. We will create a popu
 
 ```{python example_sequence}
 from agents import MeetingSequence
+import numpy as np
+np.random.seed(25)
 meeting_sequence = MeetingSequence(
     n_agents=30,
     B_params=(20, 5),
@@ -72,8 +74,6 @@ As we can see, most agents start attending in person, then they drop off more an
 
 ```{python generate_data}
 import pandas as pd
-import numpy as np
-np.random.seed(42)
 def run_simulations(params):
     rows = []
     for simulation in range(1000):
