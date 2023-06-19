@@ -37,3 +37,9 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# HTML output
+*.html
+
+# Quarto _files folder
+*_files/

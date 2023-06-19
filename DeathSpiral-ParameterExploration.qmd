@@ -1,0 +1,173 @@
+---
+title: "Hybrid death spiral - parameter explorations"
+subtitle: "What are the consequences of varying utility functions?"
+author: "Ben Prystawski"
+format: html
+---
+
+By our last meeting, I had a simple model in which agents' utility from going to a meeting in person was linear in the number of other people going in person, while agents' utility. The slopes and intercepts were drawn from a Gaussian distribution, which lead to the "hybrid death spiral" -- fewer and fewer people attended each successive meeting in person and overall utility went down. Here, I explore different potential utility function setups and explore the results.
+
+# Remote matching
+
+One possibly dubious assumption I made in the original model is that the utility of a remote attendee is fixed regardless of how many other attendees are remote, while the utility of an in-person attendee increases with the number of other in-person attendees. In practice, the only remote attendee in a meeting might be easily overlooked while a meeting with many remote attendees might be more focused on the remote participants (and thus more valuable for them).
+
+Here, we can assume that there is also a utility from attending remotely also increases with the number of attendees doing the same. That is, the meeting utilities are
+
+$$
+\begin{align*}
+R &= B_r + s_rN_r\\
+P &= B_p + s_pN_p - C
+\end{align*}
+$$
+
+So an agent decides to attend remotely when
+
+$$
+s_pN_p > B + s_rN_r
+$$
+
+Intuitively, this should hasten the death spiral. Now it's not only that the utility of attending in person goes down the more people switch to remote. The utility of attending remotely also increases! At the same time, it may make the death spiral less harmful: if the utility of attending remotely increases as more people do it, participants might not suffer as much of a loss to utility. Let's try some parameter settings and see whether the death spiral still occurs:
+
+```{python}
+from utils import run_simulations
+df_simulations = run_simulations({"n_agents": 30, "B_params": (20, 5), "sp_params": (1, 0.25), "sr_params": (0.15, 0.1)})
+```
+
+```{r message=F}
+library(tidyverse)
+library(ggthemes)
+library(reticulate)
+theme_set(theme_tufte())
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=attendance)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="In-person attendance over meetings (remote matching)",
+        x="Meeting number",
+        y="Agents attending in person"
+    )
+```
+
+So we still get the hybrid death spiral. But let's see how utilities change over meetings when agents' remote utility increases with the number of other remote attendees.
+
+```{r message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=utility)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Total utility over meetings",
+        x="Meeting number",
+        y="Sum of agents' utilities"
+    )
+```
+
+That's really interesting! There's a dip as the attendees are split over whether they attend in person or remotely, but once everyone converges on attending remotely utility increases again (though it levels off at a lower level than where it started). The subsequent increase didn't occur in the model where remote attendance just gave a fixed utility.
+
+# What if returns diminish?
+
+Another assumption I'm interested in relaxing is that utility increases uniformly with the number of other participants attending in the same way. The difference between being one of two in-person attendees and one of three is probably bigger than being one of 22 vs one of 23. I'm going to model this by log-transforming the number of attendees in computing uility. That is,
+
+$$
+\begin{align*}
+R &= B_r + s_r\log(N_r)\\
+P &= B_p + s_p\log(N_p) - C
+\end{align*}
+$$[I'm using the natural logarithm here.]{.column-margin}
+
+So participants attend when
+
+$$
+s_p\log(N_p) > B + s_r\log(N_r)
+$$
+
+Let's try simulating a series of meetings with the same parameter settings, but with this log transform:
+
+```{python message=F}
+from agents import LogUtilityAgent
+df_simulations = run_simulations({"n_agents": 30, "AgentType": LogUtilityAgent, "B_params": (20, 5), "sp_params": (1, 0.25), "sr_params": (0.15, 0.1)})
+```
+
+```{r message=F}
+theme_set(theme_tufte())
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=attendance)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="In-person attendance over meetings (log utility)",
+        x="Meeting number",
+        y="Agents attending in person"
+    )
+```
+
+Woah! Log-attendance utility leads agents to dramatically favour attending remotely over in-person. That makes sense, since the advantage of in-person meetings comes from other people attending in person. We just log-transformed the thing that gives in-person meetings an edge over remote. We see the same story in the utilities: people massively favour remote meetings.
+
+```{r message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=utility)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Total utility over meetings (with log)",
+        x="Meeting number",
+        y="Sum of agents' utilities"
+    )
+```
+
+Let's see if we can get something resembling the "hybrid death spiral" out of a model with log-attendance using different parameter settings:
+
+```{python message=F}
+from agents import LogUtilityAgent
+df_simulations = run_simulations({"n_agents": 30, "AgentType": LogUtilityAgent, "B_params": (6, 2), "sp_params": (2, 0.5), "sr_params": (0.1, 0.1)})
+```
+
+```{r message=F}
+theme_set(theme_tufte())
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=attendance)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="In-person attendance over meetings (log utility, different params)",
+        x="Meeting number",
+        y="Agents attending in person"
+    )
+```
+
+This setting seems to produce a similar, though slightly differently-shaped, death spiral effect. The decrease looks more gradual than in the linear-utility case.
+
+```{r message=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=utility)
+) + 
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Total utility over meetings (with log, different params)",
+        x="Meeting number",
+        y="Sum of agents' utilities"
+    )
+```
+
+The total-utility trend is really cool! There's actually an increase when a few people start going remotely, followed by a decrease as more and more people show up remotely. Here, it seems like utility levels off at a higher value than it is in the first meeting. Most people would prefer to attend remotely if at least a few others do, and more people attending remotely over time enables them to do so. But utility is highest around the second and third meetings where participants are more evenly distributed between modalities. If what matters is the log of the number of people choosing a method, then distributing people evenly makes sense as a way to maximize utility as it maximizes the sum of the log of the two numbers. That is, if I want to maximize $\log x + \log y$ subject to $x + y = 30$, then choosing $x = y = 15$ accomplishes that.
+
+# Possible future direction: separating the host from the attendees
+
+Lots of meetings have a "host". The host could be the teacher in an online class, the presenter in a lab meeting, or the leader of a project. That person is probably more invested in the meeting than others and their preferences might be different. I've been thinking about how to model these differences. One simple way is just to give the host different (and possibly much larger) parameter values or a different utility function than the other attendees. But that seems to miss part of the story, as the host often has some say over what form the meeting takes. It could be worth plugging these agent-based simulations back into Mike's original models if we want to model how hosts make decisions about what format to host meetings in (and the effect on attendees).
+
+## Hybrid classes
+
+A class is a salient example of an asymmetric meeting, where the teacher is the host. It could be interesting to model the utility of the teacher and students differently and see what the model says.
