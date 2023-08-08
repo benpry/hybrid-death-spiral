@@ -1,0 +1,81 @@
+---
+title: "Hybrid death spiral - modelling different choices"
+subtitle: "Now we can compare hybrid meetings to in-person and remote meetings and compare utilities."
+author: "Ben Prystawski"
+format: html
+---
+
+```{r message=F, include=F}
+library(tidyverse)
+library(ggthemes)
+library(reticulate)
+theme_set(theme_tufte())
+```
+
+# Where we were last time
+
+In our last meeting, we identified the fact that Ben's agent-based model isn't fully compatible with Mike's model as a flaw and decided that fixing it should be a priority.
+
+In the previous version of the model, agents had a utility for showing up in person, $P = B_p + sN_p - C$, and a utility for showing up remotely, $R = B_r$. $B_m$ is the baseline benefit for attending the meeting via method $m$, $C$ is the cost of attending a meeting in person, and $N_p$ is the number of people who show up in person. The idea was that the value of showing up in person depends on how many others show up in person, while the value of showing up remotely is constant. This, combined with people using attendance at the next meeting to estimate attendance at the next meeting, produced the "hybrid death spiral" where more and more people show up in person.
+
+That model was meant to zoom in on the hybrid death spiral and undestand why it happens, but it doesn't include some key points in Mike's argument for why hybrid meetings are sometimes worse than fully in person or fully remote -- the existance of a fixed cost of running a hybrid meeting. It also might be the case that remote attendees are happier when more people show up remotely, so it makes sense to add a variable utility component to the remote utilty as well.
+
+# Changes I've made
+
+Based on our discussions, I've made two changes to the hybrid death spiral model:
+
+1. I've made the utility functions of remote and in-person attendance symmetric: now both have a fixed component and a component that varies with the number of other people doing it. The slopes and intercepts might differ for each utility function, but now they're equally expressive.
+2. I've added a potential cost to running a hybrid meeting. For now, this gets subtracted from the mean utility, equivalent to saying that everyone shares the cost of running a meeting hybrid equally.
+
+# Reproducing Mike's original findings
+
+Now that the setup allows fixed costs of running hybrid meetings, we can compare utility across hybrid, fully remote, and fully in-person simulated meetings.
+
+```{python}
+import pandas as pd
+from utils import run_simulations
+
+df_simulations = pd.DataFrame()
+for meeting_format in ("hybrid", "irl", "online"):
+    df_format = run_simulations({"n_agents": 30, "meeting_format": meeting_format, "Bp_params": (-15, 5), "Br_params": (5, 0.5), "sp_params": (1, 0.25), "sr_params": (0.1, 0.1)})
+    df_format["meeting_format"] = meeting_format
+    df_simulations = pd.concat([df_simulations, df_format])
+```
+
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=utility)
+) + 
+    facet_wrap(~ meeting_format) +
+    geom_point(alpha=0.01, position=position_jitter(height=0, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="Mean utility over meetings",
+        x="Meeting number",
+        y="Total utility"
+    )
+```
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_simulations,
+    mapping = aes(x = meeting_num, y=n_in_person)
+) + 
+    facet_wrap(~ meeting_format) +
+    geom_point(alpha=0.01, position=position_jitter(height=0.1, width=0.2)) +
+    geom_smooth() +
+    labs(
+        title="In-person attendance over meetings",
+        x="Meeting number",
+        y="Agents attending in person"
+    )
+```
+
+# Exploring some alternate parameter settings
+
+
+
+# Miscellaneous lingering ideas
+

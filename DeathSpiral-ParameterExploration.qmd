@@ -30,7 +30,7 @@ Intuitively, this should hasten the death spiral. Now it's not only that the uti
 
 ```{python}
 from utils import run_simulations
-df_simulations = run_simulations({"n_agents": 30, "B_params": (20, 5), "sp_params": (1, 0.25), "sr_params": (0.15, 0.1)})
+df_simulations = run_simulations({"n_agents": 30, "b_params": (20, 5), "sp_params": (1, 0.25), "sr_params": (0.15, 0.1)})
 ```
 
 ```{r message=F}
