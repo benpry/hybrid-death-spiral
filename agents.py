@@ -9,48 +9,42 @@ class Agent:
     A hybrid meeting agent that tries to match the majority of others.
     """
 
-    def __init__(self, sp, sr, Bp, Br):
-        self.sp = sp
-        self.sr = sr
-        self.Bp = Bp
-        self.Br = Br
+    def __init__(
+        self,
+        utility_from_others_matrix: np.ndarray,
+        intrinsic_utilities: np.ndarray,
+    ):
+        self.intrinsic_utilities = intrinsic_utilities
+        self.utility_from_others_matrix = utility_from_others_matrix
 
-    def attends(self, Np_estimate, Nr_estimate, meeting_format):
+    def compute_utilities(self, others_attendance):
+        """
+        Compute the utilities from attending in each format
+        """
+        return (
+            self.utility_from_others_matrix.dot(others_attendance)
+            + self.intrinsic_utilities
+        )
+
+    def attends(self, attendance_estimates, meeting_format):
+        """
+        Return whether the agent attends a meeting in a given format
+        """
+        utilities = self.compute_utilities(attendance_estimates)
         if meeting_format == "hybrid":
-            # hybrid meeting: do we prefer in-person attendance?
-            if (
-                self.compute_utility(Np_estimate, Nr_estimate, "in-person")
-                > self.compute_utility(Np_estimate, Nr_estimate, "remote")
-                and self.compute_utility(Np_estimate, Nr_estimate, "in-person") > 0
-            ):
-                return "in-person"
-            # if not, would we rather attend remotely than not at all?
-            elif self.compute_utility(Np_estimate, Nr_estimate, "remote") > 0:
-                return "remote"
-            else:
-                return None
-        elif meeting_format == "irl":
-            # we can either attend in-person or not at all
             return (
                 "in-person"
-                if self.compute_utility(Np_estimate, Nr_estimate, "in-person") > 0
-                else None
+                if utilities[0] >= utilities[1] and utilities[0] > 0
+                else "remote"
+                if utilities[1] > utilities[0] and utilities[1] > 0
+                else False
             )
         elif meeting_format == "online":
-            # we can either attend remotely or not at all
-            return (
-                "remote"
-                if self.compute_utility(Np_estimate, Nr_estimate, "remote") > 0
-                else None
-            )
-
-    def compute_utility(self, Np, Nr, attendance_type):
-        if attendance_type == "in-person":
-            return self.Bp + self.sp * Np
-        elif attendance_type == "remote":
-            return self.Br + self.sr * Nr
+            return "remote" if utilities[1] > 0 else False
+        elif meeting_format == "irl":
+            return "in-person" if utilities[0] > 0 else False
         else:
-            return 0
+            raise ValueError(f"Invalid meeting format: {meeting_format}")
 
 
 class MeetingSequence:
@@ -63,19 +57,24 @@ class MeetingSequence:
         n_agents,
         meeting_format,
         AgentType=Agent,
-        Bp_params=(-10, 5),
-        Br_params=(-2, 1),
-        sp_params=(1, 0.5),
-        sr_params=(0.2, 0.1),
+        intrinsic_utility_means=np.array((0, 0)),
+        intrinsic_utility_stds=np.array((1, 1)),
+        utility_from_others_means=np.array(((0, 0), (0, 0))),
+        utility_from_others_stds=np.array(((1, 1), (1, 1))),
         hybrid_fixed_cost=10,
     ):
         self.agents = []
         for _ in range(n_agents):
-            sp = np.random.normal(loc=sp_params[0], scale=sp_params[1])
-            sr = np.random.normal(loc=sr_params[0], scale=sr_params[1])
-            Bp = np.random.normal(loc=Bp_params[0], scale=Bp_params[1])
-            Br = np.random.normal(loc=Br_params[0], scale=Br_params[1])
-            agent = AgentType(sp, sr, Bp, Br)
+            intrinsic_utilities = np.random.normal(
+                loc=intrinsic_utility_means, scale=intrinsic_utility_stds
+            )
+            utility_from_others = np.random.normal(
+                loc=utility_from_others_means, scale=utility_from_others_stds
+            )
+            agent = AgentType(
+                utility_from_others_matrix=utility_from_others,
+                intrinsic_utilities=intrinsic_utilities,
+            )
             self.agents.append(agent)
 
         self.meeting_format = meeting_format
@@ -84,10 +83,21 @@ class MeetingSequence:
         # initialize the expected attendance to everyone
         self.reset()
 
+    def reset(self):
+        if self.meeting_format == "online":
+            self.remote_estimate = self.n_agents
+            self.in_person_estimate = 0
+        else:
+            self.in_person_estimate = self.n_agents
+            self.remote_estimate = 0
+
     def hold_meeting(self, meeting_format):
         """Hold a meeting and return the total utility"""
         agent_attendances = [
-            a.attends(self.in_person_estimate, self.remote_estimate, meeting_format)
+            a.attends(
+                np.array([self.in_person_estimate, self.remote_estimate]),
+                meeting_format,
+            )
             for a in self.agents
         ]
         n_in_person = sum([int(x == "in-person") for x in agent_attendances])
@@ -95,9 +105,18 @@ class MeetingSequence:
 
         sum_utility = 0
         for i, agent in enumerate(self.agents):
-            sum_utility += agent.compute_utility(
-                n_in_person, n_remote, agent_attendances[i]
-            )
+            if agent_attendances[i]:
+                if agent_attendances[i] == "in-person":
+                    sum_utility += agent.compute_utilities(
+                        np.array([n_in_person, n_remote])
+                    )[0]
+                elif agent_attendances[i] == "remote":
+                    sum_utility += agent.compute_utilities(
+                        np.array([n_in_person, n_remote])
+                    )[1]
+                else:
+                    raise ValueError(f"Invalid attendance type: {agent_attendances[i]}")
+
         mean_utility = sum_utility / self.n_agents
 
         # this iteration's actual number becomes the next iteration's estimate
@@ -120,14 +139,6 @@ class MeetingSequence:
             utilities.append(utility)
 
         return ns_in_person, ns_remote, utilities
-
-    def reset(self):
-        if self.meeting_format == "online":
-            self.remote_estimate = self.n_agents
-            self.in_person_estimate = 0
-        else:
-            self.in_person_estimate = self.n_agents
-            self.remote_estimate = 0
 
 
 class LogUtilityAgent(Agent):
