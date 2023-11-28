@@ -1,8 +1,10 @@
 ---
-title: "Hybrid death spiral - modelling different choices"
+title: "Hybrid death spiral - fixed cost and situation modelling"
 subtitle: "Now we can compare hybrid meetings to in-person and remote meetings and compare utilities."
 author: "Ben Prystawski"
-format: html
+format: 
+    html:
+        toc: true
 ---
 
 ```{r message=F, include=F}
@@ -14,7 +16,7 @@ theme_set(theme_tufte())
 
 # Where we were last time
 
-In our last meeting, we identified the fact that Ben's agent-based model isn't fully compatible with Mike's model as a flaw and decided that fixing it should be a priority.
+In our last meeting, we identified the fact that my agent-based model isn't fully compatible with Mike's model as a flaw and decided that fixing it should be a priority.
 
 In the previous version of the model, agents had a utility for showing up in person, $P = B_p + sN_p - C$, and a utility for showing up remotely, $R = B_r$. $B_m$ is the baseline benefit for attending the meeting via method $m$, $C$ is the cost of attending a meeting in person, and $N_p$ is the number of people who show up in person. The idea was that the value of showing up in person depends on how many others show up in person, while the value of showing up remotely is constant. This, combined with people using attendance at the next meeting to estimate attendance at the next meeting, produced the "hybrid death spiral" where more and more people show up in person.
 
@@ -35,17 +37,31 @@ Now that the setup allows fixed costs of running hybrid meetings, we can compare
 import pandas as pd
 from utils import run_simulations
 
-df_simulations = pd.DataFrame()
-for meeting_format in ("hybrid", "irl", "online"):
-    df_format = run_simulations({"n_agents": 30, "meeting_format": meeting_format, "Bp_params": (-15, 5), "Br_params": (5, 0.5), "sp_params": (1, 0.25), "sr_params": (0.1, 0.1)})
-    df_format["meeting_format"] = meeting_format
-    df_simulations = pd.concat([df_simulations, df_format])
-```
 
+def generate_simulation_data(params):
+    df_simulations = pd.DataFrame()
+    for meeting_format in ("hybrid", "irl", "online"):
+        df_format = run_simulations({**params, "meeting_format": meeting_format})
+        df_format["meeting_format"] = meeting_format
+        df_simulations = pd.concat([df_simulations, df_format])
+    return df_simulations
+
+
+df_example = generate_simulation_data(
+    {
+        "n_agents": 30,
+        "Bp_params": (-15, 5),
+        "Br_params": (5, 0.5),
+        "sp_params": (1, 0.25),
+        "sr_params": (0.1, 0.1),
+        "hybrid_fixed_cost": 2.5,
+    }
+)
+```
 
 ```{r message=F, warning=F}
 ggplot(
-    data = py$df_simulations,
+    data = py$df_example,
     mapping = aes(x = meeting_num, y=utility)
 ) + 
     facet_wrap(~ meeting_format) +
@@ -54,28 +70,180 @@ ggplot(
     labs(
         title="Mean utility over meetings",
         x="Meeting number",
-        y="Total utility"
+        y="Mean utility"
     )
 ```
 
 ```{r message=F, warning=F}
 ggplot(
-    data = py$df_simulations,
-    mapping = aes(x = meeting_num, y=n_in_person)
-) + 
-    facet_wrap(~ meeting_format) +
-    geom_point(alpha=0.01, position=position_jitter(height=0.1, width=0.2)) +
+    data = py$df_example,
+    mapping = aes(x = meeting_num, y = n_in_person)
+) +
+    facet_wrap(~meeting_format) +
+    geom_point(alpha = 0.01, position = position_jitter(height = 0.1, width = 0.2)) +
     geom_smooth() +
     labs(
-        title="In-person attendance over meetings",
-        x="Meeting number",
-        y="Agents attending in person"
+        title = "In-person attendance over meetings",
+        x = "Meeting number",
+        y = "Agents attending in person"
     )
 ```
 
-# Exploring some alternate parameter settings
+The simulations above demonstrate an example of a scenario in which hybrid meetings produce lower average utility than either fully in-person or fully online meetings. I also tuned the fixed cost to demonstrate a scenario where the first meeting has a higher mean utility than an online-only meeting, but the sequence of meetings eventually has a lower mean utility. This scenario is particularly pernicious because people might be happy with the hybrid format for the first few meetings, but it eventually becomes worse.
 
+# Modelling Real-life scenarios with different parameter settings
 
+In this section, I play with parameter settings that reflect possible real-world meeting scenarios. 
 
-# Miscellaneous lingering ideas
+## Hybrid class
 
+In a class, the fixed costs of making a meeting hybrid are probably quite high. You need to figure out how to set up the A/V system in the room, possible delay class due to technical difficulties with Zoom, and deal with possibly-spotty lecture room wi-fi. The baseline benefit of attending in person are pretty high, but they vary a lot. Some people have much longer commutes than others and different people have different abilities to pay attention in person vs. online. Let's say there are 50 people in the class.
+
+```{python}
+df_class = generate_simulation_data(
+    {
+        "n_agents": 50,
+        "Bp_params": (10, 10),
+        "Br_params": (15, 2),
+        "sp_params": (0.5, 0.25),
+        "sr_params": (0.1, 0.05),
+        "hybrid_fixed_cost": 5,
+    }
+)
+```
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_class,
+    mapping = aes(x = meeting_num, y = utility)
+) +
+    facet_wrap(~meeting_format) +
+    geom_point(alpha = 0.01, position = position_jitter(height = 0, width = 0.2)) +
+    geom_smooth() +
+    labs(
+        title = "Mean utility over meetings",
+        x = "Meeting number",
+        y = "Mean utility"
+    )
+```
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_class,
+    mapping = aes(x = meeting_num, y = n_in_person)
+) +
+    facet_wrap(~meeting_format) +
+    geom_point(alpha = 0.01, position = position_jitter(height = 0.1, width = 0.2)) +
+    geom_smooth() +
+    labs(
+        title = "In-person attendance over meetings",
+        x = "Meeting number",
+        y = "Agents attending in person"
+    )
+```
+
+With this setting of parameters, it looks like holding the class fully in person is the best option. The fixed cost and the death sprial lead to the mean utility after a few class meetings to be about the same as it is if the meeting were fully remote.
+
+## Large committee meeting
+
+In a large committee meeting, there are a lot of attendees, most of whom are not particularly enthused about attending. They aren't planning to pay much attention anyway, but maybe the meeting will be a bit more productive if they were in person. Let's say the committee has 15 people. The fixed cost of setting up the meeting is moderate. Someone has to set up the department's meeting owl, but there's no fiddling with A/V in random lecture halls.
+
+```{python}
+df_committee = generate_simulation_data(
+    {
+        "n_agents": 15,
+        "Bp_params": (-5, 5),
+        "Br_params": (2, 2),
+        "sp_params": (0.5, 0.25),
+        "sr_params": (0.2, 0.1),
+        "hybrid_fixed_cost": 2.5,
+    }
+)
+```
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_committee,
+    mapping = aes(x = meeting_num, y = utility)
+) +
+    facet_wrap(~meeting_format) +
+    geom_point(alpha = 0.01, position = position_jitter(height = 0, width = 0.2)) +
+    geom_smooth() +
+    labs(
+        title = "Mean utility over meetings",
+        x = "Meeting number",
+        y = "Mean utility"
+    )
+```
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_committee,
+    mapping = aes(x = meeting_num, y = n_in_person)
+) +
+    facet_wrap(~meeting_format) +
+    geom_point(alpha = 0.01, position = position_jitter(height = 0.1, width = 0.2)) +
+    geom_smooth() +
+    labs(
+        title = "In-person attendance over meetings",
+        x = "Meeting number",
+        y = "Agents attending in person"
+    )
+```
+
+This type of meeting will end up with almost everyone showing up remotely if you hold it hybrid, but that's not such a bad thing considering people's utilities. Even if the only attendance option is in-person, about half oaf attendees won't show up to any given meeting. The best option, though, is to hold a fully remote meeting since you don't pay the fixed cost.
+
+## Small project meeting
+
+Now let's consider a small meeting for a research project. Each person's contribution is important to the meeting, so the variable utility is high while the fixed utility is low. Setting up a hybrid meeting isn't hard, you can just zoom someone in on someone's laptop.
+
+```{python}
+df_project = generate_simulation_data(
+    {
+        "n_agents": 5,
+        "Bp_params": (-5, 5),
+        "Br_params": (0, 2),
+        "sp_params": (3, 0.5),
+        "sr_params": (1, 0.5),
+        "hybrid_fixed_cost": 1,
+    }
+)
+```
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_project,
+    mapping = aes(x = meeting_num, y = utility)
+) +
+    facet_wrap(~meeting_format) +
+    geom_point(alpha = 0.01, position = position_jitter(height = 0, width = 0.2)) +
+    geom_smooth() +
+    labs(
+        title = "Mean utility over meetings",
+        x = "Meeting number",
+        y = "Mean utility"
+    )
+```
+
+```{r message=F, warning=F}
+ggplot(
+    data = py$df_project,
+    mapping = aes(x = meeting_num, y = n_in_person)
+) +
+    facet_wrap(~meeting_format) +
+    geom_point(alpha = 0.01, position = position_jitter(height = 0.1, width = 0.2)) +
+    geom_smooth() +
+    labs(
+        title = "In-person attendance over meetings",
+        x = "Meeting number",
+        y = "Agents attending in person"
+    )
+```
+
+Here, meeting in person and hybrid work about equally well. People realize that they have more productive meetings in person, so they show up in person most of the time anyway. Even when the meeting is hybrid, there's not much death spiral. The fully online meeting would be a lot worse. So zooming someone in every once in a while if they can't make it in person is a reasonable thing to do.
+
+# Concluding thoughts
+
+When I tried to model these scenarios, I had to make the weird simplifying assumption that a participant's utility from attending depends exclusively on a fixed baseline plus the number of other people choosing the same attendance option as themselves. I think this works decently for the setting of a virtual class, which I initially developed it in. However, it doesn't feel like a great fit for something like a small project meeting. I would usually prefer it if my collaborators showed up virtually rather than not attend at all!
+
+So I think it would make sense to have four parameters based on the 2x2 of "my attendance" and "other person's attendance." i.e. we would have utility per in-person attendee for in-person attendees, utility per virtual attendee for in-person attendees, utility per in-person attendee for virtual attendees, and utility per virtual attendee for virtual attendees. I feel like that would capture more real-life situations well, but at the same time it would add four more paramters to the model. Still, I think adding those extra parameters would be worth it.

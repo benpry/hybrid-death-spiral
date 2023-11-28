@@ -43,3 +43,13 @@ vignettes/*.pdf
 
 # Quarto _files folder
 *_files/
+
+# R Project file
+*.Rproj
+
+# python things
+__pycache__/
+rsconnect/
+
+# VS Code things
+.vscode/
